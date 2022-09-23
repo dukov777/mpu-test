@@ -25,8 +25,13 @@
  */
 
 /* FreeRTOS includes. */
+#include "projdefs.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
+#include <stdio.h>
+#include "main.h"
+#include "restricted_task_helper.h"
 
 /** ARMv7 MPU Details:
  *
@@ -77,6 +82,33 @@ static void prvROAccessTask( void * pvParameters );
  * @param pvParameters[in] Parameters as passed during task creation.
  */
 static void prvRWAccessTask( void * pvParameters );
+
+
+/*-----------------------------------------------------------*/
+
+static void prvPeripherialROAccessTask( void * pvParameters )
+{
+	/* Unused parameters. */
+	( void ) pvParameters;
+
+	for( ; ; )
+	{
+		/* Since this task has Read Only access to the Peripherial  region,
+		 * writing to it results in Memory Fault.
+		 */
+		GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+
+		GPIO_InitStruct.Pin = MEMS_INT2_Pin;
+		GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+		GPIO_InitStruct.Pull = GPIO_NOPULL;
+		/* Illegal access to generate Memory Fault. */
+		HAL_GPIO_Init(MEMS_INT2_GPIO_Port, &GPIO_InitStruct);
+
+		// should not rich this point!
+		/* Wait for a second. */
+		vTaskDelay( pdMS_TO_TICKS( 1000 ) );
+	}
+}
 
 /*-----------------------------------------------------------*/
 
@@ -191,14 +223,21 @@ static void prvRWAccessTask( void * pvParameters )
 }
 /*-----------------------------------------------------------*/
 
-void vStartMPUDemo( void )
-{
-/**
- * Since stack of a task is protected using MPU, it must satisfy MPU
- * requirements as mentioned at the top of this file.
- */
+static StackType_t xPeripherialROAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
 static StackType_t xROAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
 static StackType_t xRWAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
+
+TaskParameters_t xPeripherialROAccessTaskParameters =
+{
+	.pvTaskCode		= prvPeripherialROAccessTask,
+	.pcName			= "PeripherialROAccess",
+	.usStackDepth	= configMINIMAL_STACK_SIZE,
+	.pvParameters	= NULL,
+	.uxPriority		= tskIDLE_PRIORITY,
+	.puxStackBuffer	= xPeripherialROAccessTaskStack,
+	.xRegions		= {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
+};
+
 TaskParameters_t xROAccessTaskParameters =
 {
 	.pvTaskCode		= prvROAccessTask,
@@ -213,6 +252,7 @@ TaskParameters_t xROAccessTaskParameters =
 							{ 0,								0,					0																						},
 						}
 };
+
 TaskParameters_t xRWAccessTaskParameters =
 {
 	.pvTaskCode		= prvRWAccessTask,
@@ -228,11 +268,65 @@ TaskParameters_t xRWAccessTaskParameters =
 						}
 };
 
+
+
+
+TaskHandle_t PeripherialTaskHandler;
+QueueHandle_t errors_queue;
+
+
+static void prvDemonTask(  void * pvParameters  )
+{
+	/**
+	 * Since stack of a task is protected using MPU, it must satisfy MPU
+	 * requirements as mentioned at the top of this file.
+	 */
+	init_restricted_tasks();
+
+	// This gue communicates with Memory fault handler and get the SP of fault sTask. By the value of SP we find the failed task
+	errors_queue = xQueueCreate(10, sizeof(void*));
+
+	/* Create an unprivileged task with RO access to Peripherials. */
+//	xTaskCreateRestricted( &( xPeripherialROAccessTaskParameters ), &PeripherialTaskHandler );
+	create_restricted_task(&xPeripherialROAccessTaskParameters);
+
 	/* Create an unprivileged task with RO access to ucSharedMemory. */
-	xTaskCreateRestricted( &( xROAccessTaskParameters ), NULL );
+//	xTaskCreateRestricted( &( xROAccessTaskParameters ), NULL );
+	create_restricted_task(&xROAccessTaskParameters);
 
 	/* Create an unprivileged task with RW access to ucSharedMemory. */
-	xTaskCreateRestricted( &( xRWAccessTaskParameters ), NULL );
+//	xTaskCreateRestricted( &( xRWAccessTaskParameters ), NULL);
+	create_restricted_task(&xRWAccessTaskParameters);
+
+
+	while(1){
+		uint32_t MemoryRegion;
+		xQueueReceive(errors_queue, &MemoryRegion, portMAX_DELAY);
+		if(MemoryRegion != 0){
+//			vTaskDelete(PeripherialTaskHandler);
+			kill_restricted_task((void*)MemoryRegion);
+
+			vTaskDelay(10);
+			/* Create an unprivileged task with RW access to ucSharedMemory. */
+//			xTaskCreateRestricted( &( xPeripherialROAccessTaskParameters ), &PeripherialTaskHandler );
+			create_restricted_task(&xPeripherialROAccessTaskParameters);
+
+		}
+	}
+}
+
+static StackType_t xDemonTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
+static StaticTask_t xDemonTaskBuffer;
+
+void vStartMPUDemo( void )
+{
+	xTaskCreateStatic(prvDemonTask,
+			"DemonTask",
+			configMINIMAL_STACK_SIZE,
+			NULL,
+			((configMAX_PRIORITIES-1) | portPRIVILEGE_BIT),
+			xDemonTaskStack,
+			&xDemonTaskBuffer);
 }
 /*-----------------------------------------------------------*/
 
@@ -291,9 +385,16 @@ uint16_t usOffendingInstruction;
 	}
 	else
 	{
-		/* This is an unexpected fault - loop forever. */
-		for( ; ; )
-		{
+        // In case of Peritherial Memory access fault
+ 
+		// send the stack to Deamon.
+		BaseType_t xHigherPriorityTaskWoken = 1;
+		uint32_t base = (uint32_t) pulFaultStackAddress;
+		xQueueSendFromISR(errors_queue, (void*)&base,
+				&xHigherPriorityTaskWoken);
+		if (xHigherPriorityTaskWoken) {
+			// Jump to Tast switcher
+			portYIELD_FROM_ISR(portSVC_YIELD);
 		}
 	}
 }
