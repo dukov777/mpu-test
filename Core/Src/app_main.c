@@ -33,6 +33,11 @@
 /* Demo includes. */
 #include "mpu_demo.h"
 
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
+
 void app_main( void )
 {
 	/* Start the MPU demo. */
