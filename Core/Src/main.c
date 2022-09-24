@@ -63,7 +63,7 @@ static void MX_SPI1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 int _write(int file, char *ptr, int len) {
-	uint8_t status = CDC_Transmit_FS((uint8_t*) ptr, len);
+	CDC_Transmit_FS((uint8_t*) ptr, len);
 //	if(status == USBD_OK){
 //		return len;
 //	}else{
