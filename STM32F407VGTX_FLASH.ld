@@ -40,12 +40,12 @@ ENTRY(Reset_Handler)
 _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
 
 _Min_Heap_Size = 0x200 ; /* required amount of heap */
-_Min_Stack_Size = 0x400 ; /* required amount of stack */
+_Min_Stack_Size = 0x600 ; /* required amount of stack */
 
 /* Memories definition */
 MEMORY
 {
-  CCMRAM    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 64K
+/*  CCMRAM    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 64K */
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 128K
   FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 1024K
 }
@@ -66,6 +66,10 @@ __privileged_functions_end__          = __FLASH_segment_start__ + __privileged_f
 
 __privileged_data_start__             = __SRAM_segment_start__;
 __privileged_data_end__               = __SRAM_segment_start__ + __privileged_data_region_size__;
+
+
+__usb_data_start__             = _usb_data_start;
+__usb_data_end__               = _usb_data_end;
 
 /* Sections. */
 SECTIONS
@@ -185,6 +189,16 @@ SECTIONS
     } >RAM AT> FLASH
 
     /* Initialized data sections into "RAM" Ram type memory. */
+
+	.usb_data :
+	{
+        . = ALIGN(4);
+        _usb_data_start = .;       
+        *usb*.o(.data .data* .bss .bss*)       
+        . = ALIGN(4);
+        _usb_data_end = .;         
+	} >RAM AT> FLASH
+
     .data : 
     {
         . = ALIGN(4);
@@ -211,6 +225,7 @@ SECTIONS
         __bss_end__ = _ebss;
     } >RAM
 
+	
     /* User_heap_stack section, used to check that there is enough "RAM" Ram
     * type memory left. */
     ._user_heap_stack :
