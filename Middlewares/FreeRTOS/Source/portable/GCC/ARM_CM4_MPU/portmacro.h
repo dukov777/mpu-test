@@ -72,7 +72,11 @@ typedef unsigned long    UBaseType_t;
     #define portTICK_TYPE_IS_ATOMIC    1
 #endif
 
+
 /*-----------------------------------------------------------*/
+// used by MPU functions
+#define portPERIPHERALS_START_ADDRESS	0x40000000UL
+#define portPERIPHERALS_END_ADDRESS     0x5FFFFFFFUL
 
 /* MPU specific constants. */
 #define portUSING_MPU_WRAPPERS                                   1

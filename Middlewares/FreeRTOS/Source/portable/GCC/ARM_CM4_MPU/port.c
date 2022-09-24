@@ -87,8 +87,6 @@
 #define portPRIVILEGED_EXECUTION_START_ADDRESS    ( 0UL )
 #define portMPU_REGION_VALID                      ( 0x10UL )
 #define portMPU_REGION_ENABLE                     ( 0x01UL )
-#define portPERIPHERALS_START_ADDRESS             0x40000000UL
-#define portPERIPHERALS_END_ADDRESS               0x5FFFFFFFUL
 
 /* Constants required to access and manipulate the SysTick. */
 #define portNVIC_SYSTICK_INT                      ( 0x00000002UL )
