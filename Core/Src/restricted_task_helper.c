@@ -65,3 +65,15 @@ BaseType_t kill_restricted_task(const void* task_stack)
 
 	return -1;
 }
+
+TaskHandle_t restricted_task_get_task_handler(const void* task_stack)
+{
+	ProtectedTasks_t* task_descriptor = find_descriptor_by_memory_address(task_stack);
+	if(task_descriptor) {
+		TaskHandle_t tcb = task_descriptor->task_handle;
+		return tcb;
+	}
+
+	return NULL;
+}
+

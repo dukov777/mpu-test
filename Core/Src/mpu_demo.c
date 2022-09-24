@@ -35,6 +35,7 @@
 #include "usb_device.h"
 #include "usbd_cdc_if.h"
 #include "logger.h"
+#include <string.h>
 
 // https://www.freertos.org/MPU_Chapter.pdf
 
@@ -93,42 +94,43 @@ static void prvRWAccessTask( void * pvParameters );
 
 static void prvPeripherialROAccessTask( void * pvParameters )
 {
+	logger_write("====PeripherialROAccessTask Start\r\n");
+	vTaskDelay( pdMS_TO_TICKS( 1000 ) );
 	/* Unused parameters. */
 	( void ) pvParameters;
-//	printf("prvPeripherialROAccessTask\r\n");
 
-	for( ; ; )
-	{
-		/* Since this task has Read Only access to the Peripherial  region,
-		 * writing to it will results in Memory Fault.
-		 * Should not print to console
-		 */
-		GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+	/* Since this task has Read Only access to the Peripherial  region,
+	 * writing to it will results in Memory Fault.
+	 * Should not print to console
+	 */
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
 
-		GPIO_InitStruct.Pin = MEMS_INT2_Pin;
-		GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
-		GPIO_InitStruct.Pull = GPIO_NOPULL;
-		/* Illegal access to generate Memory Fault. */
-        HAL_GPIO_Init(MEMS_INT2_GPIO_Port, &GPIO_InitStruct);
+	GPIO_InitStruct.Pin = MEMS_INT2_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	/* Illegal access to generate Memory Fault. */
+	HAL_GPIO_Init(MEMS_INT2_GPIO_Port, &GPIO_InitStruct);
 
-		// should not rich this point!
-		/* Wait for a second. */
-		vTaskDelay( pdMS_TO_TICKS( 1000 ) );
-	}
+	logger_write("prvPeripherialROAccessTask ERROR!\r\n");
+	// should not rich this point!
+	/* Wait for a second. */
+	while(1);
+
 }
 
 /*-----------------------------------------------------------*/
 
 static void prvROAccessTask( void * pvParameters )
 {
-uint8_t ucVal;
+	logger_write("ROAccessTask Start\r\n");
+	uint8_t ucVal;
 
 	/* Unused parameters. */
 	( void ) pvParameters;
-//	printf("prvROAccessTask\r\n");
 
 	for( ; ; )
 	{
+	 	logger_write("ROAccessTask test start\r\n");
 		/* This task has RO access to ucSharedMemory and therefore it can read
 		 * it but cannot modify it. */
 		ucVal = ucSharedMemory[ 0 ];
@@ -210,6 +212,7 @@ uint8_t ucVal;
 
 		/* Wait for a second. */
 		vTaskDelay( pdMS_TO_TICKS( 1000 ) );
+	 	logger_write("ROAccessTask Successfully reached the end of test\r\n");
 	}
 }
 /*-----------------------------------------------------------*/
@@ -218,10 +221,11 @@ static void prvRWAccessTask( void * pvParameters )
 {
 	/* Unused parameters. */
 	( void ) pvParameters;
-	logger_write("prvRWAccessTask Start\r\n");
+	logger_write("RWAccessTask Start\r\n");
 
 	for( ; ; )
 	{
+	 	logger_write("--RWAccessTask Test begin\r\n");
         /* This task has RW access to ucSharedMemory and therefore can write to
 		 * it. */
 		ucSharedMemory[ 0 ] = 0;
@@ -236,7 +240,7 @@ static void prvRWAccessTask( void * pvParameters )
 
 		/* Wait for a second. */
 		vTaskDelay( pdMS_TO_TICKS( 1000 ) );
-		logger_write("prvRWAccessTask Tick\r\n");
+	 	logger_write("--RWAccessTask Successfully reached the end of test\r\n");
 	}
 }
 /*-----------------------------------------------------------*/
@@ -244,6 +248,13 @@ static void prvRWAccessTask( void * pvParameters )
 static StackType_t xPeripherialROAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
 static StackType_t xROAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
 static StackType_t xRWAccessTaskStack[ configMINIMAL_STACK_SIZE ] __attribute__( ( aligned( configMINIMAL_STACK_SIZE * sizeof( StackType_t ) ) ) );
+
+#define PERIPHERIAL_REGION_LEN (portPERIPHERALS_END_ADDRESS - portPERIPHERALS_START_ADDRESS)
+extern uint32_t _usb_data_start[];
+extern uint32_t _usb_data_end[];
+extern uint32_t __globaly_accesible_memory_start__[];
+extern uint32_t __globaly_accesible_memory_end__[];
+#define GLOBAL_LEN (0x100)
 
 TaskParameters_t xPeripherialROAccessTaskParameters =
 {
@@ -253,10 +264,12 @@ TaskParameters_t xPeripherialROAccessTaskParameters =
 	.pvParameters	= NULL,
 	.uxPriority		= tskIDLE_PRIORITY,
 	.puxStackBuffer	= xPeripherialROAccessTaskStack,
-	.xRegions		= {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}
+	.xRegions		= {
+			{ (void*)__globaly_accesible_memory_start__, 	GLOBAL_LEN,					portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
+			{0, 0, 0},
+			{0, 0, 0}}
 };
 
-#define PERIPHERIAL_REGION_LEN (portPERIPHERALS_END_ADDRESS - portPERIPHERALS_START_ADDRESS)
 
 TaskParameters_t xROAccessTaskParameters =
 {
@@ -269,15 +282,10 @@ TaskParameters_t xROAccessTaskParameters =
 	.xRegions		=	{
 			{ ucSharedMemory, 						SHARED_MEMORY_SIZE, 	portMPU_REGION_PRIVILEGED_READ_WRITE_UNPRIV_READ_ONLY | portMPU_REGION_EXECUTE_NEVER	},
 			{ (void*)ucROTaskFaultTracker,			SHARED_MEMORY_SIZE,		portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER },
-			{ (void*)portPERIPHERALS_START_ADDRESS,	PERIPHERIAL_REGION_LEN,	portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER },
+			{ (void*)__globaly_accesible_memory_start__, 	GLOBAL_LEN,					portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
 	}
 };
 
-extern uint32_t _usb_data_start[];
-extern uint32_t _usb_data_end[];
-extern uint32_t __globaly_accesible_memory_start__[];
-extern uint32_t __globaly_accesible_memory_end__[];
-#define GLOBAL_LEN (0x100)
 
 TaskParameters_t xRWAccessTaskParameters =
 {
@@ -303,7 +311,9 @@ QueueHandle_t errors_queue;
 
 static void prvDemonTask(  void * pvParameters  )
 {
-	logger_write("prvDemonTask Start");
+	TaskStatus_t xTaskDetails;
+
+	logger_write("\r\n prvDemonTask Start\r\n");
 	/**
 	 * Since stack of a task is protected using MPU, it must satisfy MPU
 	 * requirements as mentioned at the top of this file.
@@ -314,29 +324,31 @@ static void prvDemonTask(  void * pvParameters  )
 	errors_queue = xQueueCreate(10, sizeof(void*));
 
 	/* Create an unprivileged task with RO access to Peripherials. */
-//	xTaskCreateRestricted( &( xPeripherialROAccessTaskParameters ), &PeripherialTaskHandler );
-//	create_restricted_task(&xPeripherialROAccessTaskParameters);
+	create_restricted_task(&xPeripherialROAccessTaskParameters);
 
 	/* Create an unprivileged task with RO access to ucSharedMemory. */
-//	xTaskCreateRestricted( &( xROAccessTaskParameters ), NULL );
-//	create_restricted_task(&xROAccessTaskParameters);
+	create_restricted_task(&xROAccessTaskParameters);
 
 	/* Create an unprivileged task with RW access to ucSharedMemory. */
-//	xTaskCreateRestricted( &( xRWAccessTaskParameters ), NULL);
 	create_restricted_task(&xRWAccessTaskParameters);
-
 
 	while(1){
 		uint32_t MemoryRegion;
 		xQueueReceive(errors_queue, &MemoryRegion, portMAX_DELAY);
 		if(MemoryRegion != 0){
-//			vTaskDelete(PeripherialTaskHandler);
+			TaskHandle_t handle = restricted_task_get_task_handler((void*)MemoryRegion);
 			kill_restricted_task((void*)MemoryRegion);
-
-			vTaskDelay(10);
-			/* Create an unprivileged task with RW access to ucSharedMemory. */
-//			xTaskCreateRestricted( &( xPeripherialROAccessTaskParameters ), &PeripherialTaskHandler );
-			create_restricted_task(&xPeripherialROAccessTaskParameters);
+			vTaskGetInfo( handle, &xTaskDetails, pdTRUE, eInvalid);
+			if(0 == memcmp("PeripherialROAccess", xTaskDetails.pcTaskName, strlen(xTaskDetails.pcTaskName)))
+			{
+				vTaskDelay(10);
+				create_restricted_task(&xPeripherialROAccessTaskParameters);
+			}
+			else
+			{
+				//should not end here
+				while(1);
+			}
 
 		}
 	}

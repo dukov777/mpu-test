@@ -22,6 +22,8 @@ BaseType_t create_restricted_task(const TaskParameters_t * const pxTaskDefinitio
 
 BaseType_t kill_restricted_task(const void* task_stack);
 
+TaskHandle_t restricted_task_get_task_handler(const void* task_stack);
+
 
 #ifdef __cplusplus
 }
