@@ -71,6 +71,9 @@ __privileged_data_end__               = __SRAM_segment_start__ + __privileged_da
 __usb_data_start__             = _usb_data_start;
 __usb_data_end__               = _usb_data_end;
 
+__globaly_accesible_memory_start__    = globaly_accesible_memory_start;
+__globaly_accesible_memory_end__	  = globaly_accesible_memory_end;
+
 /* Sections. */
 SECTIONS
 {
@@ -186,6 +189,18 @@ SECTIONS
          * of the current section (.privileged_data in this case). As a result,
          * setting dot (.) to a value sets the size of the section. */
         . = __privileged_data_region_size__;
+    } >RAM AT> FLASH
+
+    /* Globally accessible variables*/
+    .global_data :
+    {
+        . = ALIGN(4);
+		globaly_accesible_memory_start = .;
+        
+        *(global_data)
+        
+        . = ALIGN(4);
+		globaly_accesible_memory_end = .;
     } >RAM AT> FLASH
 
     /* Initialized data sections into "RAM" Ram type memory. */

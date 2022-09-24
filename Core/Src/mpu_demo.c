@@ -34,7 +34,9 @@
 #include "restricted_task_helper.h"
 #include "usb_device.h"
 #include "usbd_cdc_if.h"
+#include "logger.h"
 
+// https://www.freertos.org/MPU_Chapter.pdf
 
 /** ARMv7 MPU Details:
  *
@@ -216,7 +218,7 @@ static void prvRWAccessTask( void * pvParameters )
 {
 	/* Unused parameters. */
 	( void ) pvParameters;
-	_write(0, "prvRWAccessTask Start\r\n", strlen("prvRWAccessTask Start\r\n"));
+	logger_write("prvRWAccessTask Start\r\n");
 
 	for( ; ; )
 	{
@@ -234,7 +236,7 @@ static void prvRWAccessTask( void * pvParameters )
 
 		/* Wait for a second. */
 		vTaskDelay( pdMS_TO_TICKS( 1000 ) );
-		_write(0, "prvRWAccessTask Tick\r\n", strlen("prvRWAccessTask Tick\r\n"));
+		logger_write("prvRWAccessTask Tick\r\n");
 	}
 }
 /*-----------------------------------------------------------*/
@@ -273,6 +275,10 @@ TaskParameters_t xROAccessTaskParameters =
 
 extern uint32_t _usb_data_start[];
 extern uint32_t _usb_data_end[];
+extern uint32_t __globaly_accesible_memory_start__[];
+extern uint32_t __globaly_accesible_memory_end__[];
+#define GLOBAL_LEN (0x100)
+
 TaskParameters_t xRWAccessTaskParameters =
 {
 	.pvTaskCode		= prvRWAccessTask,
@@ -284,12 +290,11 @@ TaskParameters_t xRWAccessTaskParameters =
 	.xRegions		=	{
 							{ ucSharedMemory,	SHARED_MEMORY_SIZE,							portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
 							{ (void*)portPERIPHERALS_START_ADDRESS,	PERIPHERIAL_REGION_LEN,	portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER },
-							{ (void*)_usb_data_start, 				0x4000,					portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
+							{ (void*)__globaly_accesible_memory_start__, 	GLOBAL_LEN,					portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
+//							{ (void*)_usb_data_start, 				0x4000,					portMPU_REGION_READ_WRITE | portMPU_REGION_EXECUTE_NEVER},
 //							{ 0,0,0},
 						}
 };
-
-
 
 
 TaskHandle_t PeripherialTaskHandler;
@@ -298,16 +303,12 @@ QueueHandle_t errors_queue;
 
 static void prvDemonTask(  void * pvParameters  )
 {
+	logger_write("prvDemonTask Start");
 	/**
 	 * Since stack of a task is protected using MPU, it must satisfy MPU
 	 * requirements as mentioned at the top of this file.
 	 */
 	init_restricted_tasks();
-
-	/* init code for USB_DEVICE */
-	MX_USB_DEVICE_Init();
-	vTaskDelay(1000);
-	printf("prvDemonTask\r\n");
 
 	// This gue communicates with Memory fault handler and get the SP of fault sTask. By the value of SP we find the failed task
 	errors_queue = xQueueCreate(10, sizeof(void*));
@@ -346,6 +347,8 @@ static StaticTask_t xDemonTaskBuffer;
 
 void vStartMPUDemo( void )
 {
+	logger_open();
+
 	xTaskCreateStatic(prvDemonTask,
 			"DemonTask",
 			configMINIMAL_STACK_SIZE,
