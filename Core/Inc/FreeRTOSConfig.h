@@ -32,6 +32,16 @@
 extern "C" {
 #endif
 
+/* Ensure definitions are only used by the compiler, and not by the assembler. */
+#if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
+  #include <stdint.h>
+  extern uint32_t SystemCoreClock;
+  void xPortSysTickHandler(void);
+#endif
+#ifndef CMSIS_device_header
+#define CMSIS_device_header "stm32f4xx.h"
+#endif /* CMSIS_device_header */
+
 /*-----------------------------------------------------------
  * Application specific definitions.
  *
@@ -147,7 +157,6 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 standard names. */
 #define xPortPendSVHandler 			PendSV_Handler
 #define vPortSVCHandler 			SVC_Handler
-#define xPortSysTickHandler 		SysTick_Handler
 
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */

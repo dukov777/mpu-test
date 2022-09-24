@@ -22,6 +22,9 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "FreeRTOS.h"
+#include "task.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -94,21 +97,6 @@ void HardFault_Handler(void)
 }
 
 /**
-  * @brief This function handles Memory management fault.
-  */
-//void MemManage_Handler(void)
-//{
-//  /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-//
-//  /* USER CODE END MemoryManagement_IRQn 0 */
-//  while (1)
-//  {
-//    /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-//    /* USER CODE END W1_MemoryManagement_IRQn 0 */
-//  }
-//}
-
-/**
   * @brief This function handles Pre-fetch fault, memory access fault.
   */
 void BusFault_Handler(void)
@@ -139,19 +127,6 @@ void UsageFault_Handler(void)
 }
 
 /**
-  * @brief This function handles System service call via SWI instruction.
-  */
-//void SVC_Handler(void)
-//{
-//  /* USER CODE BEGIN SVCall_IRQn 0 */
-//
-//  /* USER CODE END SVCall_IRQn 0 */
-//  /* USER CODE BEGIN SVCall_IRQn 1 */
-//
-//  /* USER CODE END SVCall_IRQn 1 */
-//}
-
-/**
   * @brief This function handles Debug monitor.
   */
 void DebugMon_Handler(void)
@@ -165,31 +140,19 @@ void DebugMon_Handler(void)
 }
 
 /**
-  * @brief This function handles Pendable request for system service.
-  */
-//void PendSV_Handler(void)
-//{
-//  /* USER CODE BEGIN PendSV_IRQn 0 */
-//
-//  /* USER CODE END PendSV_IRQn 0 */
-//  /* USER CODE BEGIN PendSV_IRQn 1 */
-//
-//  /* USER CODE END PendSV_IRQn 1 */
-//}
-
-/**
   * @brief This function handles System tick timer.
   */
-//void SysTick_Handler(void)
-//{
-//  /* USER CODE BEGIN SysTick_IRQn 0 */
-//
-//  /* USER CODE END SysTick_IRQn 0 */
-//  HAL_IncTick();
-//  /* USER CODE BEGIN SysTick_IRQn 1 */
-//
-//  /* USER CODE END SysTick_IRQn 1 */
-//}
+void SysTick_Handler(void)
+{
+  /* USER CODE BEGIN SysTick_IRQn 0 */
+
+  /* USER CODE END SysTick_IRQn 0 */
+  HAL_IncTick();
+  /* USER CODE BEGIN SysTick_IRQn 1 */
+  xPortSysTickHandler();
+
+  /* USER CODE END SysTick_IRQn 1 */
+}
 
 /******************************************************************************/
 /* STM32F4xx Peripheral Interrupt Handlers                                    */

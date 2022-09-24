@@ -32,6 +32,8 @@
 #include <stdio.h>
 #include "main.h"
 #include "restricted_task_helper.h"
+#include "usb_device.h"
+
 
 /** ARMv7 MPU Details:
  *
@@ -282,6 +284,9 @@ static void prvDemonTask(  void * pvParameters  )
 	 * requirements as mentioned at the top of this file.
 	 */
 	init_restricted_tasks();
+
+	/* init code for USB_DEVICE */
+	MX_USB_DEVICE_Init();
 
 	// This gue communicates with Memory fault handler and get the SP of fault sTask. By the value of SP we find the failed task
 	errors_queue = xQueueCreate(10, sizeof(void*));
